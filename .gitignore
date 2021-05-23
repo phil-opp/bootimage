@@ -1,2 +1,3 @@
 /target/
+rust-toolchain
 **/*.rs.bk

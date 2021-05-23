@@ -45,6 +45,7 @@ fn build(args: BuildArgs) -> Result<()> {
     let mut builder = Builder::new(args.manifest_path().map(PathBuf::from))?;
     let config = config::read_config(builder.manifest_path())?;
     let quiet = args.quiet();
+    let grub = args.grub();
 
     let executables = builder.build_kernel(&args.cargo_args(), &config, quiet)?;
     if executables.is_empty() {
@@ -61,6 +62,7 @@ fn build(args: BuildArgs) -> Result<()> {
             .to_str()
             .ok_or_else(|| anyhow!("executable file stem not valid utf8"))?;
 
+        let iso_files = out_dir.join("isofiles");
         // We don't have access to a CARGO_MANIFEST_DIR environment variable
         // here because `cargo bootimage` is started directly by the user. We
         // therefore have to find out the path to the Cargo.toml of the
@@ -76,8 +78,24 @@ fn build(args: BuildArgs) -> Result<()> {
             .ok_or_else(|| anyhow!("Failed to find kernel binary in cargo metadata output"))?;
         let kernel_manifest_path = &kernel_package.manifest_path.to_owned();
 
-        let bootimage_path = out_dir.join(format!("bootimage-{}.bin", bin_name));
-        builder.create_bootimage(kernel_manifest_path, &executable, &bootimage_path, quiet)?;
+        let bootimage_path = if grub {
+            out_dir.join(format!("bootimage-{}.iso", bin_name))
+        } else {
+            out_dir.join(format!("bootimage-{}.bin", bin_name))
+        };
+
+        let bootimage = bootimage::builder::Bootimage {
+            kernel_manifest: &kernel_manifest_path,
+            bin_path: &executable,
+            output_bin_path: &bootimage_path,
+            quiet,
+            release: args.release(),
+            grub,
+            iso_dir_path: &iso_files,
+            bin_name: &bin_name,
+        };
+
+        builder.create_bootimage(&bootimage)?;
         if !args.quiet() {
             println!(
                 "Created bootimage for `{}` at `{}`",

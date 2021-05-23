@@ -21,6 +21,26 @@ pub struct Builder {
     project_metadata: Option<Metadata>,
 }
 
+/// Arguments to create_bootimage
+pub struct Bootimage<'a> {
+    /// Path to kernel Cargo.toml
+    pub kernel_manifest: &'a Path,
+    /// Path to kernel binary
+    pub bin_path: &'a Path,
+    /// Output binary path
+    pub output_bin_path: &'a Path,
+    /// Disable logging
+    pub quiet: bool,
+    /// Use release build
+    pub release: bool,
+    /// Use grub bootloader
+    pub grub: bool,
+    /// Output directory
+    pub iso_dir_path: &'a Path,
+    /// Your project name / binary name
+    pub bin_name: &'a str,
+}
+
 impl Builder {
     /// Creates a new builder for the project at the given manifest path
     ///
@@ -130,25 +150,19 @@ impl Builder {
     /// Places the resulting bootable disk image at the given `output_bin_path`.
     ///
     /// If the quiet argument is set to true, all output to stdout is suppressed.
-    pub fn create_bootimage(
-        &mut self,
-        kernel_manifest_path: &Path,
-        bin_path: &Path,
-        output_bin_path: &Path,
-        quiet: bool,
-    ) -> Result<(), CreateBootimageError> {
+    pub fn create_bootimage(&mut self, args: &Bootimage) -> Result<(), CreateBootimageError> {
         let bootloader_build_config = bootloader::BuildConfig::from_metadata(
             self.project_metadata()?,
-            kernel_manifest_path,
-            bin_path,
+            args.kernel_manifest,
+            args.bin_path,
         )?;
 
         // build bootloader
-        if !quiet {
+        if !args.quiet {
             println!("Building bootloader");
         }
-        let mut cmd = bootloader_build_config.build_command();
-        if !quiet {
+        let mut cmd = bootloader_build_config.build_command(args.release);
+        if !args.quiet {
             cmd.stdout(process::Stdio::inherit());
             cmd.stderr(process::Stdio::inherit());
         }
@@ -163,7 +177,7 @@ impl Builder {
         }
 
         // Retrieve binary path
-        let mut cmd = bootloader_build_config.build_command();
+        let mut cmd = bootloader_build_config.build_command(args.release);
         cmd.arg("--message-format").arg("json");
         let output = cmd.output().map_err(|err| CreateBootimageError::Io {
             message: "failed to execute bootloader build command with json output",
@@ -197,7 +211,16 @@ impl Builder {
             BootloaderError::BootloaderInvalid("bootloader has no executable".into())
         })?;
 
-        disk_image::create_disk_image(&bootloader_elf_path, output_bin_path)?;
+        if args.grub {
+            disk_image::create_iso_image(
+                &bootloader_elf_path,
+                args.output_bin_path,
+                args.iso_dir_path,
+                args.bin_name,
+            )?;
+        } else {
+            disk_image::create_disk_image(&bootloader_elf_path, args.output_bin_path)?;
+        }
 
         Ok(())
     }

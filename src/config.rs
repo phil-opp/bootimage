@@ -133,22 +133,22 @@ struct ConfigBuilder {
     test_no_reboot: Option<bool>,
 }
 
-impl Into<Config> for ConfigBuilder {
-    fn into(self) -> Config {
+impl From<ConfigBuilder> for Config {
+    fn from(s: ConfigBuilder) -> Config {
         Config {
-            build_command: self.build_command.unwrap_or_else(|| vec!["build".into()]),
-            run_command: self.run_command.unwrap_or_else(|| {
+            build_command: s.build_command.unwrap_or_else(|| vec!["build".into()]),
+            run_command: s.run_command.unwrap_or_else(|| {
                 vec![
                     "qemu-system-x86_64".into(),
                     "-drive".into(),
                     "format=raw,file={}".into(),
                 ]
             }),
-            run_args: self.run_args,
-            test_args: self.test_args,
-            test_timeout: self.test_timeout.unwrap_or(60 * 5),
-            test_success_exit_code: self.test_success_exit_code,
-            test_no_reboot: self.test_no_reboot.unwrap_or(true),
+            run_args: s.run_args,
+            test_args: s.test_args,
+            test_timeout: s.test_timeout.unwrap_or(60 * 5),
+            test_success_exit_code: s.test_success_exit_code,
+            test_no_reboot: s.test_no_reboot.unwrap_or(true),
         }
     }
 }

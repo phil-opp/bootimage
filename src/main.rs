@@ -75,6 +75,8 @@ pub(crate) fn runner(args: RunnerArgs) -> Result<i32> {
         .starts_with("rustdoctest");
     let is_test = is_doctest || exe_parent.ends_with("deps");
 
+    let iso_files = exe_parent.join("isofiles");
+
     let bin_name = args
         .executable
         .file_stem()
@@ -82,7 +84,11 @@ pub(crate) fn runner(args: RunnerArgs) -> Result<i32> {
         .to_str()
         .ok_or_else(|| anyhow!("kernel executable file stem is not valid UTF-8"))?;
 
-    let output_bin_path = exe_parent.join(format!("bootimage-{}.bin", bin_name));
+    let output_bin_path = if args.grub {
+        exe_parent.join(format!("bootimage-{}.iso", bin_name))
+    } else {
+        exe_parent.join(format!("bootimage-{}.bin", bin_name))
+    };
     let executable_canonicalized = args.executable.canonicalize().with_context(|| {
         format!(
             "failed to canonicalize executable path `{}`",
@@ -98,12 +104,18 @@ pub(crate) fn runner(args: RunnerArgs) -> Result<i32> {
         .context("Failed to read CARGO_MANIFEST_DIR environment variable")?;
     let kernel_manifest_path = Path::new(&manifest_dir).join("Cargo.toml");
 
-    builder.create_bootimage(
-        &kernel_manifest_path,
-        &executable_canonicalized,
-        &output_bin_path,
-        args.quiet,
-    )?;
+    let bootimage = bootimage::builder::Bootimage {
+        kernel_manifest: &kernel_manifest_path,
+        bin_path: &executable_canonicalized,
+        output_bin_path: &output_bin_path,
+        quiet: args.quiet,
+        release: args.release,
+        grub: args.grub,
+        iso_dir_path: &iso_files,
+        bin_name: &bin_name,
+    };
+
+    builder.create_bootimage(&bootimage)?;
 
     let exit_code = run::run(config, args, &output_bin_path, is_test)?;
 

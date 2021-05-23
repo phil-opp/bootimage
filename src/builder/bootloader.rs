@@ -109,7 +109,7 @@ impl BuildConfig {
     }
 
     /// Creates the cargo build command for building the bootloader.
-    pub fn build_command(&self) -> Command {
+    pub fn build_command(&self, release: bool) -> Command {
         let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
         let mut cmd = Command::new(&cargo);
         if let Some(build_std) = &self.build_std {
@@ -124,7 +124,9 @@ impl BuildConfig {
         cmd.arg("--features")
             .arg(self.features.as_slice().join(" "));
         cmd.arg("--target").arg(&self.target);
-        cmd.arg("--release");
+        if release {
+            cmd.arg("--release");
+        }
         cmd.env("KERNEL", &self.kernel_bin_path);
         cmd.env("KERNEL_MANIFEST", &self.kernel_manifest_path);
         cmd.env("RUSTFLAGS", "");
